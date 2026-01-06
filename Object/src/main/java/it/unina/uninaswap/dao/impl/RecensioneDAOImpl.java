@@ -44,4 +44,22 @@ public class RecensioneDAOImpl implements RecensioneDAO {
 
         return result;
     }
+
+    @Override
+    public void insert(Recensione r) throws Exception {
+        String sql = "INSERT INTO recensione (titolo, corpo, valutazione, id_transazione, autore, recensito) VALUES (?, ?, ?, ?, ?, ?)";
+
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+
+            ps.setString(1, r.getTitolo());
+            ps.setString(2, r.getCorpo());
+            ps.setInt(3, r.getValutazione());
+            ps.setInt(4, r.getIdTransazione());
+            ps.setString(5, r.getAutore());
+            ps.setString(6, r.getRecensito());
+
+            ps.executeUpdate();
+        }
+    }
 }

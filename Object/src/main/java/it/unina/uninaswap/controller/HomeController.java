@@ -263,6 +263,44 @@ public class HomeController {
                     }
                 }
             });
+
+            // ==========================
+            // NUOVO LISTENER RECENSIONI
+            // ==========================
+            notificationView.setRecensioneListener((transazione, cardData) -> {
+                try {
+                    Studente venditore = studenteDAO.findByMatricola(transazione.getMatricolaVenditore());
+                    String nomeVend = (venditore != null) ? venditore.getNome() + " " + venditore.getCognome() : transazione.getMatricolaVenditore();
+
+                    LeaveRecensioneDialog dialog = new LeaveRecensioneDialog(view, nomeVend);
+                    dialog.setVisible(true);
+
+                    if (dialog.isConfirmed()) {
+                        Recensione nuovaRecensione = dialog.getRecensione();
+                        
+                        // Completa i dati mancanti nel DTO
+                        nuovaRecensione.setIdTransazione(transazione.getId());
+                        nuovaRecensione.setAutore(loggedIn.getMatricola());
+                        nuovaRecensione.setRecensito(transazione.getMatricolaVenditore());
+
+                        // Salva nel DB
+                        recensioneDAO.insert(nuovaRecensione);
+
+                        // Aggiorna la CARD localmente (mostra "Recensito" e bottone "Cancella")
+                        cardData.recensito = true;
+                        notificationView.repaint(); // Forza il refresh visivo
+                        
+                        JOptionPane.showMessageDialog(view, "Recensione pubblicata!", "Successo", JOptionPane.INFORMATION_MESSAGE);
+                        
+                        // Se vuoi, aggiorna anche il profilo (se mostri le recensioni fatte, ma per ora sono quelle ricevute)
+                        // refreshProfileView(); 
+                    }
+
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                    JOptionPane.showMessageDialog(view, "Errore salvataggio recensione: " + ex.getMessage(), "Errore", JOptionPane.ERROR_MESSAGE);
+                }
+            });
         }
     }
 
@@ -623,7 +661,7 @@ public class HomeController {
         try {
             DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-            // Offerte ricevute (io sono venditore)
+            // 1. Offerte ricevute (io sono venditore)
             List<Offerta> ricevute = offertaDAO.findRicevuteInAttesaPerVenditore(loggedIn.getMatricola());
             ArrayList<NotificationView.OffertaNotificationData> ricevuteData = new ArrayList<>();
 
@@ -649,7 +687,7 @@ public class HomeController {
             }
             notificationView.setOfferteRicevute(ricevuteData);
 
-            // Offerte inviate (io sono offerente)
+            // 2. Offerte inviate (io sono offerente)
             List<Offerta> inviate = offertaDAO.findInviateInAttesaPerOfferente(loggedIn.getMatricola());
             ArrayList<NotificationView.OffertaNotificationData> inviateData = new ArrayList<>();
 
@@ -674,6 +712,23 @@ public class HomeController {
                 ));
             }
             notificationView.setOfferteInviate(inviateData);
+
+            // 3. Acquisti da recensire (NUOVO)
+            List<Transazione> acquisti = transazioneDAO.findAcquistiNonRecensiti(loggedIn.getMatricola());
+            ArrayList<NotificationView.TransazioneToReviewData> acquistiData = new ArrayList<>();
+            
+            for (Transazione t : acquisti) {
+                Annuncio a = annuncioDAO.findById(t.getAnnuncioConcluso());
+                Studente venditore = studenteDAO.findByMatricola(t.getMatricolaVenditore());
+                
+                String titolo = (a != null) ? a.getTitolo() : "Oggetto rimosso";
+                String venditoreStr = (venditore != null) ? venditore.getNome() + " " + venditore.getCognome() : t.getMatricolaVenditore();
+                String dataStr = (t.getData() != null) ? t.getData().format(fmt) : "-";
+                String importoStr = (t.getImportoFinale() != null) ? t.getImportoFinale().toString() + " €" : "Scambio/Regalo";
+                
+                acquistiData.add(new NotificationView.TransazioneToReviewData(t, titolo, venditoreStr, dataStr, importoStr));
+            }
+            notificationView.setAcquistiDaRecensire(acquistiData);
 
         } catch (Exception ex) {
             ex.printStackTrace();
@@ -1183,4 +1238,3 @@ public class HomeController {
         loginView.setVisible(true);
     }
 }
-
